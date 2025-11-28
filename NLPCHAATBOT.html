@@ -1,0 +1,1039 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>VR AI Chatbot - Robust Fallback Enabled</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <script src="https://aframe.io/releases/1.4.0/aframe.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/gh/c-frame/aframe-extras@7.0.0/dist/aframe-extras.min.js"></script>
+    <script src="https://unpkg.com/aframe-environment-component@1.3.2/dist/aframe-environment-component.min.js"></script>
+    <style>
+      * { margin: 0; padding: 0; box-sizing: border-box; }
+      body { font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif; overflow: hidden; }
+      
+      /* API Setup */
+      #api-setup {
+        position: fixed;
+        top: 0;
+        left: 0;
+        right: 0;
+        bottom: 0;
+        background: rgba(0,0,0,0.95);
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        z-index: 10000;
+      }
+      
+      #api-setup.hidden {
+        display: none;
+      }
+      
+      .setup-box {
+        background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+        padding: 40px;
+        border-radius: 20px;
+        max-width: 500px;
+        text-align: center;
+        box-shadow: 0 20px 60px rgba(0,0,0,0.5);
+      }
+      
+      .setup-box h2 {
+        color: white;
+        margin-bottom: 20px;
+        font-size: 24px;
+      }
+      
+      .setup-box p {
+        color: rgba(255,255,255,0.9);
+        margin-bottom: 15px;
+        line-height: 1.6;
+      }
+
+      .setup-box select {
+        width: 100%;
+        padding: 15px;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        margin-bottom: 15px;
+        background: rgba(255,255,255,1);
+        color: #333;
+        font-weight: bold;
+        cursor: pointer;
+        outline: none;
+      }
+      
+      .setup-box input {
+        width: 100%;
+        padding: 15px;
+        border: none;
+        border-radius: 10px;
+        font-size: 14px;
+        margin-bottom: 20px;
+        background: rgba(255,255,255,0.9);
+      }
+      
+      .setup-box button {
+        background: white;
+        color: #4285f4;
+        border: none;
+        padding: 15px 40px;
+        border-radius: 10px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: all 0.3s ease;
+      }
+      
+      .setup-box button:hover {
+        transform: scale(1.05);
+      }
+      
+      .setup-box a {
+        color: white;
+        text-decoration: underline;
+      }
+      
+      /* HUD */
+      #hud {
+        position: absolute;
+        top: 20px;
+        left: 50%;
+        transform: translateX(-50%);
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 15px 30px;
+        border-radius: 12px;
+        font-size: 14px;
+        text-align: center;
+        z-index: 1000;
+        border: 2px solid rgba(66, 133, 244, 0.5);
+        box-shadow: 0 4px 20px rgba(0,0,0,0.5);
+      }
+      
+      #hud h3 {
+        margin: 0 0 10px 0;
+        font-size: 16px;
+        color: #4285f4;
+      }
+      
+      .env-selector {
+        display: flex;
+        gap: 8px;
+        justify-content: center;
+        margin-top: 10px;
+      }
+      
+      .env-btn {
+        background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+        color: white;
+        border: none;
+        padding: 8px 15px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: 600;
+        transition: all 0.3s ease;
+      }
+      
+      .env-btn:hover {
+        transform: translateY(-2px);
+      }
+      
+      .env-btn.active {
+        background: linear-gradient(135deg, #ea4335 0%, #fbbc04 100%);
+      }
+      
+      /* Interaction Prompt */
+      #interact-prompt {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        transform: translate(-50%, -50%);
+        background: linear-gradient(135deg, rgba(66, 133, 244, 0.95) 0%, rgba(52, 168, 83, 0.95) 100%);
+        color: white;
+        padding: 20px 40px;
+        border-radius: 15px;
+        font-size: 18px;
+        font-weight: bold;
+        z-index: 999;
+        display: none;
+        text-align: center;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.6);
+        border: 2px solid rgba(255,255,255,0.3);
+      }
+      
+      #interact-prompt.show {
+        display: block;
+        animation: pulse 1.5s infinite;
+      }
+      
+      @keyframes pulse {
+        0%, 100% { transform: translate(-50%, -50%) scale(1); }
+        50% { transform: translate(-50%, -50%) scale(1.05); }
+      }
+      
+      .key-icon {
+        display: inline-block;
+        background: white;
+        color: #4285f4;
+        padding: 8px 16px;
+        border-radius: 8px;
+        font-weight: bold;
+        margin: 0 5px;
+        box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+      }
+      
+      /* Chat Interface */
+      #chat-container {
+        position: absolute;
+        bottom: 25px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 600px;
+        max-width: 90%;
+        background: linear-gradient(135deg, rgba(0,0,0,0.95) 0%, rgba(20,20,40,0.95) 100%);
+        padding: 20px;
+        border-radius: 15px;
+        backdrop-filter: blur(10px);
+        border: 2px solid rgba(66, 133, 244, 0.5);
+        z-index: 1000;
+        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        display: none;
+      }
+      
+      #chat-container.active {
+        display: block;
+        animation: slideUp 0.3s ease;
+      }
+      
+      @keyframes slideUp {
+        from { transform: translate(-50%, 100%); opacity: 0; }
+        to { transform: translate(-50%, 0); opacity: 1; }
+      }
+      
+      #chat-header {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        margin-bottom: 15px;
+        padding-bottom: 10px;
+        border-bottom: 2px solid rgba(66, 133, 244, 0.3);
+      }
+      
+      #chat-header h3 {
+        color: #4285f4;
+        margin: 0;
+        font-size: 16px;
+      }
+      
+      #close-chat {
+        background: rgba(234, 67, 53, 0.8);
+        color: white;
+        border: none;
+        padding: 5px 15px;
+        border-radius: 6px;
+        cursor: pointer;
+        font-size: 12px;
+        font-weight: bold;
+      }
+      
+      #chat-messages {
+        background: rgba(255,255,255,0.05);
+        border-radius: 10px;
+        padding: 15px;
+        height: 180px;
+        overflow-y: auto;
+        margin-bottom: 15px;
+      }
+      
+      #chat-messages::-webkit-scrollbar {
+        width: 8px;
+      }
+      
+      #chat-messages::-webkit-scrollbar-thumb {
+        background: rgba(66, 133, 244, 0.5);
+        border-radius: 10px;
+      }
+      
+      .message {
+        margin: 10px 0;
+        padding: 12px 16px;
+        border-radius: 10px;
+        animation: fadeIn 0.3s ease;
+        line-height: 1.5;
+      }
+      
+      @keyframes fadeIn {
+        from { opacity: 0; transform: translateY(10px); }
+        to { opacity: 1; transform: translateY(0); }
+      }
+      
+      .user-msg {
+        background: linear-gradient(135deg, rgba(66, 133, 244, 0.4) 0%, rgba(52, 168, 83, 0.4) 100%);
+        color: #fff;
+        text-align: right;
+        margin-left: 40px;
+      }
+      
+      .bot-msg {
+        background: linear-gradient(135deg, rgba(234, 67, 53, 0.3) 0%, rgba(251, 188, 4, 0.3) 100%);
+        color: #fff;
+        margin-right: 40px;
+      }
+      
+      .thinking {
+        opacity: 0.6;
+        font-style: italic;
+      }
+      
+      #input-area {
+        display: flex;
+        gap: 12px;
+        align-items: center; 
+      }
+      
+      #mic-button {
+        background: #ea4335; 
+        color: white;
+        border: none;
+        padding: 0;
+        width: 42px;
+        height: 42px;
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 18px;
+        line-height: 42px;
+        text-align: center;
+        transition: background 0.3s ease, transform 0.3s ease;
+      }
+
+      #mic-button.recording {
+        background: #fbbc04; 
+        animation: pulse-mic 1s infinite alternate;
+      }
+
+      @keyframes pulse-mic {
+        from { box-shadow: 0 0 0 0 rgba(255, 255, 255, 0.7); }
+        to { box-shadow: 0 0 0 10px rgba(255, 255, 255, 0); }
+      }
+
+      #mic-button:hover:not(:disabled) {
+        transform: scale(1.05);
+      }
+      
+      #user-input {
+        flex: 1;
+        padding: 10px 18px;
+        height: 42px; 
+        border: 2px solid rgba(66, 133, 244, 0.3);
+        border-radius: 10px;
+        font-size: 14px;
+        background: rgba(255,255,255,0.05);
+        color: white;
+        outline: none;
+      }
+      
+      #user-input:focus {
+        border-color: #4285f4;
+      }
+      
+      #send-button {
+        background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+        color: white;
+        border: none;
+        padding: 10px 28px;
+        height: 42px; 
+        border-radius: 10px;
+        cursor: pointer;
+        font-size: 14px;
+        font-weight: 600;
+      }
+      
+      #send-button:hover:not(:disabled) {
+        transform: translateY(-2px);
+      }
+      
+      #send-button:disabled {
+        opacity: 0.5;
+        cursor: not-allowed;
+      }
+      
+      .badge {
+        background: linear-gradient(135deg, #4285f4 0%, #34a853 100%);
+        color: white;
+        padding: 4px 12px;
+        border-radius: 20px;
+        font-size: 11px;
+        font-weight: bold;
+        display: inline-block;
+        margin-top: 5px;
+      }
+    </style>
+  </head>
+  <body>
+    <div id="api-setup">
+      <div class="setup-box">
+        <h2>🔑 AI Config</h2>
+        <p>Select your AI provider to begin. <br>(If you have no key, enter "offline" to use backup mode)</p>
+        
+        <select id="provider-select" onchange="updateProviderUI()">
+          <option value="gemini">Google Gemini (Direct)</option>
+          <option value="xai">xAI / Grok (Direct)</option>
+          <option value="deepseek">DeepSeek (Direct)</option>
+          <option value="openrouter">OpenRouter (Multi-Model)</option>
+        </select>
+
+        <p id="api-desc" style="font-size: 12px;">Get your key: <a href="https://aistudio.google.com/app/apikey" target="_blank" id="key-link">Google AI Studio</a></p>
+        
+        <input type="password" id="api-key-input" placeholder="Enter Gemini Key (AIza...)">
+        <button onclick="saveApiKey()">Start VR Experience</button>
+        <p style="font-size: 11px; margin-top: 15px;">✨ Powered by Gemini 2.0 Flash</p>
+      </div>
+    </div>
+
+    <div id="hud">
+      <h3>🎮 Controls: WASD to Move • Mouse to Look</h3>
+      <p>Walk up to the NPC and press <span class="key-icon">F</span> to interact</p>
+      <div class="env-selector">
+        <button class="env-btn active" onclick="changeEnvironment('forest')">🌲 Forest</button>
+        <button class="env-btn" onclick="changeEnvironment('city')">🏙️ City</button>
+        <button class="env-btn" onclick="changeEnvironment('space')">🚀 Space</button>
+        <button class="env-btn" onclick="changeEnvironment('office')">🏢 Office</button>
+      </div>
+      <span class="badge" id="powered-by-badge">Powered by Gemini</span>
+    </div>
+
+    <div id="interact-prompt">
+      Press <span class="key-icon">F</span> to talk with the AI
+    </div>
+
+    <div id="chat-container">
+      <div id="chat-header">
+        <h3>💬 Chatting with AI</h3>
+        <button id="close-chat" onclick="closeChat()">Close (ESC)</button>
+      </div>
+      <div id="chat-messages">
+        <div class="message bot-msg">👋 Hello! How can I help you today? Try typing or pressing the mic button!</div>
+      </div>
+      <div id="input-area">
+        <button id="mic-button" onclick="startSpeechRecognition()">🎤</button>
+        <input type="text" id="user-input" placeholder="Type your message or speak..." autocomplete="off">
+        <button id="send-button" onclick="sendMessage()">Send</button>
+      </div>
+      <div id="speech-status" style="color: #4285f4; font-size: 12px; margin-top: 5px; height: 1em;"></div>
+    </div>
+
+    <a-scene 
+      vr-mode-ui="enabled: true"
+      loading-screen="backgroundColor: #000">
+      
+      <a-assets>
+        <a-asset-item id="avatar1" src="https://cdn.glitch.com/29e07830-2317-4b15-a044-135e73c7f840%2FAshtra.glb"></a-asset-item>
+      </a-assets>
+
+      <a-entity 
+        id="environment" 
+        environment="preset: forest; dressingAmount: 500; groundColor: #445e3a; groundColor2: #384a2e; grid: cross">
+      </a-entity>
+
+      <a-entity light="type: ambient; color: #FFF; intensity: 0.8"></a-entity>
+      <a-entity light="type: directional; color: #FFF; intensity: 1" position="2 4 2"></a-entity>
+      <a-entity light="type: point; color: #FFE; intensity: 1.5" position="0 3 -3"></a-entity>
+      <a-entity light="type: point; color: #4285f4; intensity: 0.8" position="0 2 -5"></a-entity>
+
+      <a-entity 
+        id="npc"
+        position="0 0 -4"
+        rotation="0 0 0">
+        
+        <a-entity 
+          id="npc-avatar"
+          gltf-model="#avatar1"
+          scale="1.5 1.5 1.5"
+          position="0 0 0"
+          rotation="0 180 0"
+          animation__idle="property: rotation; to: 0 190 0; dur: 3000; dir: alternate; loop: true; easing: easeInOutSine">
+        </a-entity>
+        
+        <a-entity id="fallback-avatar" visible="true">
+          <a-sphere 
+            color="#FFD1B3" 
+            radius="0.35" 
+            position="0 1.7 0"
+            segments-height="24"
+            segments-width="32">
+            <a-sphere color="#000" radius="0.06" position="-0.12 0.08 0.28"></a-sphere>
+            <a-sphere color="#FFF" radius="0.02" position="-0.11 0.09 0.32"></a-sphere>
+            <a-sphere color="#000" radius="0.06" position="0.12 0.08 0.28"></a-sphere>
+            <a-sphere color="#FFF" radius="0.02" position="0.13 0.09 0.32"></a-sphere>
+            <a-cone color="#FFA07A" radius-bottom="0.04" radius-top="0.01" height="0.1" position="0 -0.02 0.32" rotation="90 0 0"></a-cone>
+            <a-torus 
+              id="mouth" 
+              color="#8B4513" 
+              radius="0.08" 
+              radius-tubular="0.02" 
+              segments-tubular="6"
+              position="0 -0.12 0.28"
+              rotation="60 0 0"
+              animation__talk="property: scale; to: 1.2 0.8 1; dur: 150; dir: alternate; loop: true; enabled: false">
+            </a-torus>
+          </a-sphere>
+          
+          <a-cylinder 
+            id="avatar-body" 
+            color="#4285f4" 
+            radius="0.35" 
+            height="1.2" 
+            position="0 0.9 0">
+          </a-cylinder>
+          
+          <a-cylinder 
+            color="#FFD1B3" 
+            radius="0.08" 
+            height="0.8" 
+            position="-0.48 1 0" 
+            rotation="0 0 25"
+            animation__wave="property: rotation; to: -20 0 25; dur: 1000; dir: alternate; loop: true; easing: easeInOutSine">
+          </a-cylinder>
+          <a-cylinder 
+            color="#FFD1B3" 
+            radius="0.08" 
+            height="0.8" 
+            position="0.48 1 0" 
+            rotation="0 0 -25">
+          </a-cylinder>
+          
+          <a-cylinder color="#4169E1" radius="0.12" height="0.9" position="-0.18 0.2 0"></a-cylinder>
+          <a-cylinder color="#4169E1" radius="0.12" height="0.9" position="0.18 0.2 0"></a-cylinder>
+        </a-entity>
+        
+        <a-entity position="0 2.8 0">
+          <a-plane 
+            color="#4285f4" 
+            width="2" 
+            height="0.4" 
+            opacity="0.9"
+            animation="property: position; to: 0 0.1 0; dur: 2000; dir: alternate; loop: true; easing: easeInOutSine">
+          </a-plane>
+          <a-text 
+            value="AI Assistant"
+            align="center"
+            color="#FFFFFF"
+            width="5"
+            position="0 0 0.01"
+            font="https://cdn.aframe.io/fonts/Roboto-msdf.json"
+            shader="msdf"
+            animation="property: position; to: 0 0.1 0.01; dur: 2000; dir: alternate; loop: true; easing: easeInOutSine">
+          </a-text>
+        </a-entity>
+        
+        <a-ring 
+          color="#4285f4" 
+          radius-inner="2.3" 
+          radius-outer="2.5" 
+          position="0 0.05 0"
+          rotation="-90 0 0"
+          opacity="0.4"
+          animation="property: opacity; to: 0.8; dur: 1500; dir: alternate; loop: true">
+        </a-ring>
+        
+        <a-cylinder 
+          id="interaction-zone"
+          radius="2.5"
+          height="0.1"
+          position="0 0 0"
+          opacity="0">
+        </a-cylinder>
+      </a-entity>
+
+      <a-circle 
+        position="0 0 0"
+        rotation="-90 0 0"
+        radius="50"
+        color="#3a4a2a"
+        opacity="0.6"
+        shadow="receive: true">
+      </a-circle>
+
+      <a-entity 
+        id="player-rig"
+        movement-controls="speed: 0.2; fly: false"
+        position="0 0 5">
+        
+        <a-entity 
+          id="player-camera"
+          camera 
+          position="0 1.6 0"
+          look-controls="pointerLockEnabled: false">
+          
+          <a-ring 
+            position="0 0 -0.5"
+            radius-inner="0.008"
+            radius-outer="0.012"
+            color="#4285f4"
+            opacity="0.8">
+          </a-ring>
+          <a-ring 
+            position="0 0 -0.5"
+            radius-inner="0.015"
+            radius-outer="0.018"
+            color="#4285f4"
+            opacity="0.4">
+          </a-ring>
+        </a-entity>
+      </a-entity>
+    </a-scene>
+
+    <script>
+      let apiKey = '';
+      let selectedProvider = 'gemini'; // Default
+      let conversationHistory = [];
+      let isNearNPC = false;
+      let isChatting = false;
+      let currentEnv = 'forest';
+      let avatarLoaded = false;
+      let useFallback = false;
+      
+      // Voice/Speech variables
+      let isSpeaking = false;
+      let synth = window.speechSynthesis;
+      let recognition = null;
+      let micBtn = document.getElementById('mic-button');
+      let statusDiv = document.getElementById('speech-status');
+
+      const environments = {
+        forest: { preset: 'forest', dressingAmount: 500, groundColor: '#445e3a', groundColor2: '#384a2e' },
+        city: { preset: 'japan', dressingAmount: 200, groundColor: '#555', groundColor2: '#444' },
+        space: { preset: 'starry', dressingAmount: 0, groundColor: '#000', groundColor2: '#111' },
+        office: { preset: 'default', dressingAmount: 100, groundColor: '#888', groundColor2: '#666' }
+      };
+
+      // Helper: Update UI when provider changes
+      function updateProviderUI() {
+        const selector = document.getElementById('provider-select');
+        const input = document.getElementById('api-key-input');
+        const link = document.getElementById('key-link');
+        const badge = document.getElementById('powered-by-badge');
+        
+        selectedProvider = selector.value;
+        
+        if (selectedProvider === 'gemini') {
+          input.placeholder = "Enter Gemini Key (AIza...)";
+          link.href = "https://aistudio.google.com/app/apikey";
+          link.textContent = "Google AI Studio";
+          badge.textContent = "Powered by Gemini";
+        } else if (selectedProvider === 'xai') {
+          input.placeholder = "Enter xAI Key (xai-...)";
+          link.href = "https://console.x.ai/";
+          link.textContent = "xAI Console";
+          badge.textContent = "Powered by Grok";
+        } else if (selectedProvider === 'deepseek') {
+          input.placeholder = "Enter DeepSeek Key (sk-...)";
+          link.href = "https://platform.deepseek.com/api_keys";
+          link.textContent = "DeepSeek Platform";
+          badge.textContent = "Powered by DeepSeek";
+        } else {
+          input.placeholder = "Enter OpenRouter Key (sk-or-...)";
+          link.href = "https://openrouter.ai/keys";
+          link.textContent = "OpenRouter Dashboard";
+          badge.textContent = "Powered by OpenRouter";
+        }
+      }
+
+      // Check if GLB avatar loaded
+      const npcAvatar = document.querySelector('#npc-avatar');
+      if (npcAvatar) {
+        npcAvatar.addEventListener('model-loaded', () => {
+          console.log('✅ 3D Avatar loaded successfully!');
+          avatarLoaded = true;
+          document.querySelector('#fallback-avatar').setAttribute('visible', 'false');
+        });
+        
+        npcAvatar.addEventListener('model-error', (e) => {
+          console.log('⚠️ GLB avatar failed, using fallback avatar');
+          avatarLoaded = false;
+        });
+      }
+
+      function saveApiKey() {
+        const input = document.getElementById('api-key-input');
+        const userKey = input.value.trim();
+        
+        if (userKey.toLowerCase() === 'offline') {
+           useFallback = true;
+           apiKey = 'offline';
+           document.getElementById('api-setup').classList.add('hidden');
+           document.getElementById('powered-by-badge').textContent = "Offline Mode";
+           console.log('✅ Offline Mode Activated!');
+           return;
+        }
+
+        // Basic Validation
+        if (!userKey) {
+          alert('Please enter an API key or type "offline" for backup mode.');
+          return;
+        }
+
+        if (selectedProvider === 'gemini' && !userKey.startsWith('AIza')) {
+          alert('Invalid Gemini Key. It should start with "AIza".');
+          return;
+        }
+        
+        if (selectedProvider === 'xai' && !userKey.startsWith('xai-')) {
+          alert('Invalid xAI Key. It should start with "xai-".');
+          return;
+        }
+        
+        if (selectedProvider === 'deepseek' && !userKey.startsWith('sk-')) {
+          alert('Invalid DeepSeek Key. It should start with "sk-".');
+          return;
+        }
+
+        if (selectedProvider === 'openrouter' && !userKey.startsWith('sk-or-')) {
+          if(!confirm("That key doesn't look like a standard OpenRouter key. Continue?")) return;
+        }
+        
+        apiKey = userKey;
+        useFallback = false;
+        document.getElementById('api-setup').classList.add('hidden');
+        conversationHistory = [{
+          role: 'system',
+          content: 'You are a helpful AI assistant in a VR environment. Be friendly, concise, and engaging. Keep responses under 100 words.'
+        }];
+        
+        console.log(`✅ ${selectedProvider.toUpperCase()} API connected!`);
+      }
+
+      function changeEnvironment(env) {
+        currentEnv = env;
+        const config = environments[env];
+        document.querySelector('#environment').setAttribute('environment', config);
+        document.querySelectorAll('.env-btn').forEach(btn => btn.classList.remove('active'));
+        const newActiveBtn = document.querySelector(`.env-btn[onclick*="'${env}'"]`);
+        if (newActiveBtn) newActiveBtn.classList.add('active');
+      }
+
+      function checkNPCProximity() {
+        const player = document.querySelector('#player-rig');
+        const npc = document.querySelector('#npc');
+        
+        if (!player || !npc) return;
+        
+        const playerPos = player.object3D.position;
+        const npcPos = npc.object3D.position;
+        const distance = Math.hypot(playerPos.x - npcPos.x, playerPos.z - npcPos.z);
+        
+        if (distance < 3.5 && !isChatting) {
+          isNearNPC = true;
+          document.getElementById('interact-prompt').classList.add('show');
+        } else {
+          isNearNPC = false;
+          document.getElementById('interact-prompt').classList.remove('show');
+        }
+      }
+
+      function animateTalking(shouldTalk) {
+        const mouth = document.querySelector('#mouth');
+        if (mouth) {
+          mouth.setAttribute('animation__talk', 'enabled', shouldTalk);
+          if (!shouldTalk) {
+            mouth.setAttribute('scale', '1 1 1');
+          }
+        }
+      }
+      
+      // Text-to-Speech (TTS)
+      function speakText(text) {
+        if (!synth) {
+          const talkDuration = Math.max(2000, text.length * 50);
+          animateTalking(true);
+          setTimeout(() => animateTalking(false), talkDuration);
+          return;
+        }
+        synth.cancel();
+        const utterance = new SpeechSynthesisUtterance(text);
+        utterance.pitch = 1;
+        utterance.rate = 1.1; 
+        
+        utterance.onstart = () => {
+          isSpeaking = true;
+          animateTalking(true); 
+        };
+        
+        utterance.onend = () => {
+          isSpeaking = false;
+          if (isChatting) {
+            animateTalking(false); 
+          }
+        };
+        
+        synth.speak(utterance);
+      }
+      
+      function startSpeechRecognition() {
+        if (!isChatting) return;
+        if (!('webkitSpeechRecognition' in window) && !('SpeechRecognition' in window)) {
+          statusDiv.textContent = 'Speech input not supported in this browser.';
+          return;
+        }
+        
+        if (isSpeaking) {
+          statusDiv.textContent = 'Please wait for the AI to finish speaking.';
+          return;
+        }
+        
+        const SpeechRecognition = window.SpeechRecognition || window.webkitSpeechRecognition;
+        if (!recognition) {
+          recognition = new SpeechRecognition();
+          recognition.continuous = false;
+          recognition.interimResults = false;
+          recognition.lang = 'en-US';
+        }
+        
+        recognition.onstart = () => {
+          micBtn.classList.add('recording');
+          statusDiv.textContent = 'Listening... Speak now.';
+          document.querySelector('#user-input').disabled = true;
+          document.querySelector('#send-button').disabled = true;
+        };
+
+        recognition.onresult = (event) => {
+          const speechResult = event.results[0][0].transcript;
+          document.querySelector('#user-input').value = speechResult;
+          setTimeout(sendMessage, 100); 
+        };
+
+        recognition.onerror = (event) => {
+          micBtn.classList.remove('recording');
+          statusDiv.textContent = 'Speech error. Try again.';
+          document.querySelector('#user-input').disabled = false;
+          document.querySelector('#send-button').disabled = false;
+        };
+
+        recognition.onend = () => {
+          micBtn.classList.remove('recording');
+          if (statusDiv.textContent === 'Listening... Speak now.') {
+            statusDiv.textContent = ''; 
+          }
+        };
+
+        try {
+          if (recognition) recognition.stop();
+          recognition.start();
+        } catch (e) {
+          statusDiv.textContent = 'Recognition error. Try refreshing.';
+        }
+      }
+
+      function openChat() {
+        if (!isNearNPC) return;
+        isChatting = true;
+        document.getElementById('chat-container').classList.add('active');
+        document.getElementById('interact-prompt').classList.remove('show');
+        document.getElementById('user-input').focus();
+        animateTalking(true);
+        setTimeout(() => animateTalking(false), 2000); 
+      }
+
+      function closeChat() {
+        isChatting = false;
+        document.getElementById('chat-container').classList.remove('active');
+        animateTalking(false);
+        if (synth) synth.cancel();
+        if (recognition) recognition.stop(); 
+        micBtn.classList.remove('recording');
+        statusDiv.textContent = '';
+      }
+
+      document.addEventListener('keydown', (e) => {
+        if (e.key.toLowerCase() === 'f' && isNearNPC && !isChatting) {
+          openChat();
+        }
+        if (e.key === 'Escape' && isChatting) {
+          closeChat();
+        }
+        if (e.key === 'Enter' && isChatting && !document.querySelector('#send-button').disabled) {
+          sendMessage();
+        }
+      });
+
+      function addBotMessage(text) {
+        const chatBox = document.querySelector('#chat-messages');
+        const msg = document.createElement('div');
+        msg.className = 'message bot-msg';
+        msg.textContent = '🤖 ' + text;
+        chatBox.appendChild(msg);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+
+      function addUserMessage(text) {
+        const chatBox = document.querySelector('#chat-messages');
+        const msg = document.createElement('div');
+        msg.className = 'message user-msg';
+        msg.textContent = text;
+        chatBox.appendChild(msg);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+
+      function showThinking() {
+        const chatBox = document.querySelector('#chat-messages');
+        const msg = document.createElement('div');
+        msg.className = 'message bot-msg thinking';
+        msg.id = 'thinking-msg';
+        msg.textContent = '🤖 Thinking...';
+        chatBox.appendChild(msg);
+        chatBox.scrollTop = chatBox.scrollHeight;
+      }
+
+      function removeThinking() {
+        const thinking = document.getElementById('thinking-msg');
+        if (thinking) thinking.remove();
+      }
+
+      // --- NEW FALLBACK LOGIC ---
+      function getFallbackResponse(input) {
+        const lower = input.toLowerCase();
+        
+        // Simple heuristic matching
+        if (lower.match(/hello|hi|hey|greetings/)) 
+            return "Hi there! I'm currently running on backup power (Offline Mode), but I'm happy to see you!";
+        
+        if (lower.match(/who are you|what are you/)) 
+            return "I am a VR assistant. My main AI brain is currently disconnected, so I'm using my local backup system.";
+            
+        if (lower.match(/how are you|status/)) 
+            return "I'm functioning, though my connection to the cloud is down. I can still chat simply!";
+
+        if (lower.match(/where am i|location/)) 
+            return `You are currently in the ${currentEnv} environment. It's quite peaceful here, isn't it?`;
+            
+        if (lower.match(/bye|goodbye|see you/)) 
+            return "Goodbye! Feel free to come back when my servers are back online.";
+
+        // Random generic responses
+        const generics = [
+            "I see. That's interesting! (I'm in offline mode, so my responses are limited).",
+            "I can't access my full knowledge base right now, but I'm listening.",
+            "My AI connection is a bit fuzzy. Can you try asking that again later?",
+            "I'm enjoying this virtual world with you, even if my brain is offline.",
+            "That sounds cool! Tell me more."
+        ];
+        return generics[Math.floor(Math.random() * generics.length)];
+      }
+
+      async function callAIAPI(userMessage) {
+        // Immediate fallback if set to offline mode
+        if (useFallback) {
+            await new Promise(r => setTimeout(r, 1000)); // Fake network delay
+            return getFallbackResponse(userMessage);
+        }
+
+        conversationHistory.push({
+          role: 'user',
+          content: userMessage
+        });
+
+        let url = '';
+        let headers = {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`
+        };
+        let bodyData = {
+          messages: conversationHistory,
+          max_tokens: 150,
+          temperature: 0.7
+        };
+
+        if (selectedProvider === 'gemini') {
+          url = 'https://generativelanguage.googleapis.com/v1beta/openai/chat/completions';
+          bodyData.model = 'gemini-2.0-flash-exp';
+        } else if (selectedProvider === 'xai') {
+          url = 'https://api.x.ai/v1/chat/completions';
+          bodyData.model = 'grok-beta';
+        } else if (selectedProvider === 'deepseek') {
+          url = 'https://api.deepseek.com/chat/completions';
+          bodyData.model = 'deepseek-chat';
+        } else {
+          url = 'https://openrouter.ai/api/v1/chat/completions';
+          bodyData.model = 'google/gemini-2.0-flash-exp:free'; 
+          headers['HTTP-Referer'] = window.location.href;
+          headers['X-Title'] = 'VR Chatbot';
+        }
+        
+        try {
+          const response = await fetch(url, {
+            method: 'POST',
+            headers: headers,
+            body: JSON.stringify(bodyData)
+          });
+          
+          if (!response.ok) {
+            const errorData = await response.json();
+            throw new Error(errorData.error?.message || `API Error: ${response.status}`);
+          }
+          
+          const data = await response.json();
+          const assistantMessage = data.choices[0].message.content;
+          
+          conversationHistory.push({
+            role: 'assistant',
+            content: assistantMessage
+          });
+          
+          if (conversationHistory.length > 21) {
+            conversationHistory = [
+              conversationHistory[0], 
+              ...conversationHistory.slice(-20)
+            ];
+          }
+          
+          return assistantMessage;
+          
+        } catch (error) {
+          console.error('AI API Error:', error);
+          console.log('⚠️ Switching to Fallback Response due to API Error');
+          // Automatically use fallback logic on error instead of showing error message
+          return getFallbackResponse(userMessage);
+        }
+      }
+
+      async function sendMessage() {
+        const input = document.querySelector('#user-input');
+        const sendBtn = document.querySelector('#send-button');
+        const text = input.value.trim();
+        
+        if (!text) return;
+        
+        input.disabled = true;
+        sendBtn.disabled = true;
+        micBtn.disabled = true;
+        statusDiv.textContent = '';
+
+        addUserMessage(text);
+        input.value = '';
+        
+        showThinking();
+        animateTalking(true); 
+        
+        const response = await callAIAPI(text);
+        
+        removeThinking();
+        addBotMessage(response);
+        
+        animateTalking(false); 
+        speakText(response); 
+        
+        input.disabled = false;
+        sendBtn.disabled = false;
+        micBtn.disabled = false;
+        input.focus();
+      }
+
+      setInterval(checkNPCProximity, 100);
+
+      console.log('✅ VR Chatbot Loaded with Multi-Provider Support & Offline Fallback');
+    </script>
+  </body>
+</html>
